@@ -2,7 +2,7 @@
 A Python tool to classify SSL certificates into Domain, Intermediate, and Root categories.
 
 
-The project currently supports the classification of SSL certificates with a single intermediate certificate for a domain. The script may encounter issues when there are multiple intermediate certificate issuers for a single domain.
+The project currently supports the classification of SSL certificates with a single intermediate certificate per domain. However, the script may break if the domain's subject starts with a subdomain (e.g., online.nitratic.com) or when multiple intermediate certificate issuers are present for a single domain.
 <br>
 
 **"All under-development code resides in the dev directory."**
