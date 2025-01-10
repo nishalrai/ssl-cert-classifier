@@ -1,15 +1,21 @@
 import os
-import sys
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
-from rich.console import Console
-from rich.text import Text
-from rich.panel import Panel
+from __scp_file__ import scp_transfer
+from requests import get
 
+## Add modules
+import subprocess
+import sys
 
 
 def load_cert_files(folder_name="ssl"):
+    """
+    Load .crt and .key files from the specified folder in the current working directory.
 
+    :param folder_name: Name of the folder to search for files.
+    :return: Lists of .crt and .key files.
+    """
     # Construct the path to the directory
     path = os.path.join(os.getcwd(), folder_name)
     
@@ -47,40 +53,13 @@ if __name__ == "__main__":
 
     crt_files, key_files = load_cert_files(folder_name)
 
+    #print(f"CRT files in '{folder_name}': {crt_files}")
+    #print(f"Key files in '{folder_name}': {key_files}")
 
-
+# Print the results
+#print("Certificate files:", crt_files)
+#print("Key files:", key_files)
 print("\n")
-
-# Front Console
-def print_centered_title(title_text):
-    console = Console()
-
-    # Create a panel with the centered text
-    panel = Panel(
-        title_text,
-        title="###############################################",
-        subtitle="###############################################",
-        title_align="center",
-        subtitle_align="center",
-        expand=False,
-        padding=(1, 1)  # Adjust padding as needed
-    )
-
-    # Print the panel with centered text
-    console.print(panel)
-    print("\n")
-
-# Usage
-print_centered_title(Text("     Created by NITRATIC\n       SSL Cert Classifier", style="aquamarine1"))
-# Create a Console object
-console = Console()
-
-# Define the headers
-header_1 = Text("List of discovered domain certificates:", style="bold cyan on black")
-header_2 = Text("Info of Domain and Intermediate Certificate", style="medium_spring_green")
-header_3 = Text("Discovered Domain, Intermediate and Root certificate from the list", style="bold magenta on black")
-header_4 = Text("Unmatched intermediate certificates:", style="aquamarine1")
-
 # Lists to store classified certificates
 domain_certificates = []
 intermediate_certificates = []
@@ -107,17 +86,15 @@ for crt_info in crt_files:
             domain_certificates.append(crt_info)
             #print(f"\nDomain Certificate:\n{crt_info} with CN: {cn}")
 
-console.print(Panel(header_1, title="Domain Cert Info", title_align="left", expand=False))
+print("#####  List of discovered domain certificates:  ####")
 for list_domain_crt in domain_certificates:
     with open(list_domain_crt, "rb") as list_domain_crt_file:
         list_domain_crt_file_data = list_domain_crt_file.read()
         cert = x509.load_pem_x509_certificate(list_domain_crt_file_data, default_backend())
         domain_cn = get_common_name(cert)
-    #print(f'   Domain \"{list_domain_crt}\": CN: '{domain_cn}', style="bold red")
-    console.print(f'   Domain "{list_domain_crt}": "{domain_cn}"', style="bold red")
-    #print(f'     {list_domain_crt} - CN: {domain_cn}    ')
+    print(f'     {list_domain_crt} - CN: {domain_cn}    ')
 
-console.print("\n")
+
 #print(domain_certificates)
 #print(crt_files)
 
@@ -138,7 +115,6 @@ def get_common_name_from_issuer(issuer_dn):
 certificate_pairs = {}
 intermediate_list =[]
 
-console.print(Panel(header_2, title="Domain and Intermediate Cert Info", title_align="left", expand=False))
 # Assuming domain_certificates and new_crt_files are lists of file paths to certificates
 for classify_cert in domain_certificates:
     with open(classify_cert, "rb") as classify_crt_file:
@@ -163,9 +139,7 @@ for classify_cert in domain_certificates:
         
         # Check if the CNs match
         if common_name == inter_common_name:
-            console.print(f"       Domain \"{classify_cert}\": '{domain_common_name}'", style="bold red")
-            console.print(f"       Intermediate certificate \"{classify_inter}\": '{inter_common_name}'\n", style="royal_blue1")
-            #print(f"Domain '{classify_cert}': '{domain_common_name}'\nIntermediate certificate '{classify_inter}': '{inter_common_name}'\n")
+            #print(f"Domain certificate '{classify_cert}': '{domain_common_name}' corresponds intermediate certificate '{classify_inter}': '{inter_common_name}'")
             # Add the discovered pair to the dictionary
             intermediate_list.append(classify_inter)
             certificate_pairs[classify_cert] = classify_inter
@@ -182,14 +156,7 @@ root_crt_files = list(set(new_crt_files) - set(intermediate_list) - set(domain_c
 # List to keep track of unmatched intermediate certificates
 unmatched_certs = []
 
-# Define a function to print certificate details
-def print_certificate_details(domain_common_name, domain_cert, inter_common_name, inter_crts, root_crt_common_name, root_classify_cert):
-    console.print(f"       Domain Cert \"{domain_cert}\": \"{domain_common_name}\"", style="bold red")
-    console.print(f"       Intermediate Cert \"{inter_crts}\": \"{inter_common_name}\"", style="royal_blue1")
-    console.print(f"       Root Cert \"{root_classify_cert}\" : \"{root_crt_common_name}\"", style="plum2")
-
-
-console.print(Panel(header_3, title="Domain, Intermediate and Root Cert Info", title_align="left", expand=False))
+print(f'#####   Discovered Domain, Intermediate and Root certificate from the list   #####')
 for domain_cert, inter_crts in certificate_pairs.items():
     # Open and read the domain certificate
     with open(domain_cert, "rb") as domain_crt_file:
@@ -223,25 +190,61 @@ for domain_cert, inter_crts in certificate_pairs.items():
             #print(f'Root Certificate Issuer CN: {root_crt_common_name}')
             
             if inter_issuer_common_name == root_crt_subject and inter_issuer_common_name == root_crt_common_name:
-                print_certificate_details(domain_common_name, domain_cert, inter_common_name, inter_crts, root_crt_common_name, root_classify_cert)
+                print(f'     Domain "{domain_common_name}": file "{domain_cert}":\n    Intermediate "{inter_common_name}": "{inter_crts}" \n    Root "{root_crt_common_name}" : "{root_classify_cert}"')
                 match_found = True
                 break  # Exit the loop once a match is found
 
     # If no match was found, add the intermediate certificate to the unmatched list
     if not match_found:
         print("\n")
-        print(f'Intermediate Certificate Issuer CN: {inter_issuer_common_name}\n')
+        print(f'Intermediate Certificate Issuer CN: {inter_issuer_common_name}')
         unmatched_certs.append(inter_crts)
         #unmatched_certs.append(root_classify_cert)
 
 # Print the list of unmatched intermediate certificates
-
 if unmatched_certs:
-    console.print(Panel(header_4, title="Unmatched Cert Info", title_align="left", expand=False))
+    print("Unmatched intermediate certificates:")
     for unmatched_cert in unmatched_certs:
-        console.print(f"       Unmmatched Cert : \"{unmatched_cert}\"", style="bold red")
-        #print(unmatched_cert)
+        print(unmatched_cert)
 else:
     print("All intermediate certificates have matching root certificates.")
             
+print(f'Certificate pairs')
+print(certificate_pairs)
+print(key_files)
 
+# Function to get modulus md5 hash using OpenSSL
+def get_modulus_md5(filepath, is_key=False):
+    cmd = ['openssl', 'rsa' if is_key else 'x509', '-noout', '-modulus', '-in', filepath]
+    process = subprocess.run(cmd, capture_output=True, text=True)
+    modulus = process.stdout.strip()
+    # Hash the modulus using md5
+    md5_process = subprocess.run(['openssl', 'md5'], input=modulus, capture_output=True, text=True)
+    return md5_process.stdout.strip()
+
+# Array to store the result
+result = []
+
+# Iterate through the certificates and keys
+for get_domain, get_inter in certificate_pairs.items():
+    cert_md5 = get_modulus_md5(get_domain)
+    for key in key_files:
+        key_md5 = get_modulus_md5(key, is_key=True)
+        if cert_md5 == key_md5:
+            result.append([get_domain, get_inter, key])
+
+print(result)
+
+# Function to return the result list
+def get_result():
+    return result
+
+# Destination details
+destination_directory = "/usr/ssl"
+ip_addr = input("Enter the destination IP Address: ")
+username = input("Enter the SSH username: ")
+password = input("Enter the SSH password: ")
+
+# Verifying f5 connectivity
+f5_check = get(f"https://{ip_addr}/mgmt/shared/appsvcs/declare", auth=("username", "password"))
+print(f5_check.status_code())
